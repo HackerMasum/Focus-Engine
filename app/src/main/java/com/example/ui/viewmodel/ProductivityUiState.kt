@@ -38,12 +38,15 @@ data class ProductivityUiState(
     val activeTaskId: Long? = null,
     val activeTaskTitle: String? = null,
     val soundscape: SoundscapeType = SoundscapeType.NONE,
+    val selectedCustomSound: com.example.data.model.CustomSoundEntity? = null,
+    val ambientVolume: Float = 0.5f,
 
     // Data lists
     val tasks: List<TaskEntity> = emptyList(),
     val habits: List<HabitEntity> = emptyList(),
     val sessions: List<FocusSessionEntity> = emptyList(),
     val brainDumps: List<BrainDumpEntity> = emptyList(),
+    val customSounds: List<com.example.data.model.CustomSoundEntity> = emptyList(),
 
     // Tasks screen state
     val selectedFilter: TaskFilter = TaskFilter.ALL,

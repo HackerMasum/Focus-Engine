@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -27,15 +31,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +66,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -93,10 +103,37 @@ fun FocusScreen(
     viewModel: ProductivityViewModel,
     uiState: ProductivityUiState,
     onNavigateToTasks: () -> Unit,
+    onNavigateToNamaz: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showCustomDialog by remember { mutableStateOf(false) }
     var showTaskPickerSheet by remember { mutableStateOf(false) }
+    var showCustomSoundDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val fileName = "custom_${System.currentTimeMillis()}.mp3"
+                val dir = File(context.filesDir, "custom_sounds")
+                if (!dir.exists()) dir.mkdirs()
+                val targetFile = File(dir, fileName)
+                inputStream?.use { input ->
+                    targetFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                val trackTitle = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Custom Audio"
+                viewModel.addCustomSound(trackTitle, targetFile.absolutePath)
+                Toast.makeText(context, "Added track: $trackTitle", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error importing audio: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     val remainingMin = uiState.remainingSeconds / 60
     val remainingSec = uiState.remainingSeconds % 60
@@ -355,6 +392,46 @@ fun FocusScreen(
             }
         }
 
+        // Quick Namaz Banner
+        item {
+            val prayerCalc = remember { com.example.namaz.PrayerTimeCalculator() }
+            val nextPr = remember(prayerCalc) { prayerCalc.calculateAllWaktItems().find { it.isNext } }
+            if (nextPr != null) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF134E4A).copy(alpha = 0.35f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigateToNamaz() }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "🕌", fontSize = 16.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Next Namaz: ${nextPr.prayer.displayName} (${nextPr.startTimeFormatted})",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFA7F3D0)
+                            )
+                        }
+                        Text(
+                            text = "View Schedule ›",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = FocusCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
         // Linked Task Card
         item {
             val activeTask = uiState.tasks.find { it.id == uiState.activeTaskId }
@@ -464,7 +541,7 @@ fun FocusScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Ambient Soundscapes",
+                                text = "Focus Soundscapes",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -489,7 +566,36 @@ fun FocusScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Volume slider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VolumeUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Slider(
+                            value = uiState.ambientVolume,
+                            onValueChange = { viewModel.setAmbientVolume(it) },
+                            valueRange = 0.05f..1f,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${(uiState.ambientVolume * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(36.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -499,8 +605,14 @@ fun FocusScreen(
                             val isSelected = uiState.soundscape == sound
                             FilterChip(
                                 selected = isSelected,
-                                onClick = { viewModel.setSoundscape(sound) },
-                                label = { Text(sound.displayName) },
+                                onClick = {
+                                    if (sound == SoundscapeType.CUSTOM && uiState.customSounds.isEmpty()) {
+                                        audioPickerLauncher.launch("audio/*")
+                                    } else {
+                                        viewModel.setSoundscape(sound)
+                                    }
+                                },
+                                label = { Text("${sound.iconEmoji} ${sound.displayName}") },
                                 leadingIcon = if (isSelected) {
                                     {
                                         Icon(
@@ -520,11 +632,49 @@ fun FocusScreen(
                     }
 
                     Text(
-                        text = uiState.soundscape.subtitle,
+                        text = if (uiState.soundscape == SoundscapeType.CUSTOM) {
+                            if (uiState.selectedCustomSound != null) {
+                                "Playing custom track: ${uiState.selectedCustomSound.title}"
+                            } else {
+                                "Import your favorite audio, lo-fi beat, nature sound or recitations"
+                            }
+                        } else {
+                            uiState.soundscape.subtitle
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp)
                     )
+
+                    // Custom Audio Import & Management Row
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { audioPickerLauncher.launch("audio/*") },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("import_audio_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Import Audio (.mp3)", fontSize = 12.sp)
+                        }
+
+                        if (uiState.customSounds.isNotEmpty()) {
+                            TextButton(
+                                onClick = { showCustomSoundDialog = true }
+                            ) {
+                                Text("My Library (${uiState.customSounds.size})", fontSize = 12.sp)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -685,5 +835,137 @@ fun FocusScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+
+    // Custom Sound Library Dialog
+    if (showCustomSoundDialog) {
+        AlertDialog(
+            onDismissRequest = { showCustomSoundDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("My Custom Sounds")
+                    IconButton(
+                        onClick = {
+                            showCustomSoundDialog = false
+                            audioPickerLauncher.launch("audio/*")
+                        }
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = "Add Track")
+                    }
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (uiState.customSounds.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No custom audio tracks imported yet.\nTap + to import an MP3 or audio file.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(uiState.customSounds) { sound ->
+                                val isSelected = uiState.selectedCustomSound?.id == sound.id && uiState.soundscape == SoundscapeType.CUSTOM
+                                Card(
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected)
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        else
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.selectCustomSound(sound)
+                                            showCustomSoundDialog = false
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MusicNote,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = sound.title,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.deleteCustomSound(sound) },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DeleteOutline,
+                                                    contentDescription = "Delete Track",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        audioPickerLauncher.launch("audio/*")
+                    }
+                ) {
+                    Text("+ Import New Audio")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomSoundDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }

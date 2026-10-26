@@ -80,3 +80,18 @@ interface BrainDumpDao {
     @Query("DELETE FROM brain_dumps WHERE id = :id")
     suspend fun deleteNoteById(id: Long)
 }
+
+@Dao
+interface CustomSoundDao {
+    @Query("SELECT * FROM custom_sounds ORDER BY dateAddedMillis DESC")
+    fun getAllCustomSounds(): Flow<List<com.example.data.model.CustomSoundEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCustomSound(sound: com.example.data.model.CustomSoundEntity): Long
+
+    @Delete
+    suspend fun deleteCustomSound(sound: com.example.data.model.CustomSoundEntity)
+
+    @Query("DELETE FROM custom_sounds WHERE id = :id")
+    suspend fun deleteCustomSoundById(id: Long)
+}

@@ -45,7 +45,8 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
             taskDao = database.taskDao(),
             habitDao = database.habitDao(),
             focusSessionDao = database.focusSessionDao(),
-            brainDumpDao = database.brainDumpDao()
+            brainDumpDao = database.brainDumpDao(),
+            customSoundDao = database.customSoundDao()
         )
 
         observeData()
@@ -98,6 +99,15 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
                 }
             }
         }
+
+        // Observe Custom Sounds
+        viewModelScope.launch {
+            repository.allCustomSounds.collectLatest { sounds ->
+                _uiState.update { current ->
+                    current.copy(customSounds = sounds)
+                }
+            }
+        }
     }
 
     // --- Timer Actions ---
@@ -109,9 +119,25 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
         triggerHaptic(50)
 
         // If a soundscape is selected, start audio
-        if (_uiState.value.soundscape != SoundscapeType.NONE) {
-            soundGenerator.setSoundscape(_uiState.value.soundscape)
+        val selectedSound = _uiState.value.soundscape
+        if (selectedSound == SoundscapeType.CUSTOM && _uiState.value.selectedCustomSound != null) {
+            soundGenerator.setSoundscape(
+                SoundscapeType.CUSTOM,
+                getApplication(),
+                _uiState.value.selectedCustomSound?.filePath
+            )
+        } else if (selectedSound != SoundscapeType.NONE) {
+            soundGenerator.setSoundscape(selectedSound)
         }
+
+        // Start Foreground Service for lock screen controls & notifications
+        com.example.service.FocusTimerService.updateService(
+            getApplication(),
+            _uiState.value.remainingSeconds,
+            isRunning = true,
+            isBreak = _uiState.value.isBreak,
+            taskTitle = _uiState.value.activeTaskTitle
+        )
 
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
@@ -121,6 +147,15 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
                     val nextSeconds = current.remainingSeconds - 1
                     current.copy(remainingSeconds = nextSeconds)
                 }
+
+                // Update notification periodically
+                com.example.service.FocusTimerService.updateService(
+                    getApplication(),
+                    _uiState.value.remainingSeconds,
+                    isRunning = true,
+                    isBreak = _uiState.value.isBreak,
+                    taskTitle = _uiState.value.activeTaskTitle
+                )
             }
 
             if (_uiState.value.remainingSeconds <= 0) {
@@ -134,6 +169,13 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
         timerJob = null
         _uiState.update { it.copy(isTimerRunning = false) }
         soundGenerator.stop()
+        com.example.service.FocusTimerService.updateService(
+            getApplication(),
+            _uiState.value.remainingSeconds,
+            isRunning = false,
+            isBreak = _uiState.value.isBreak,
+            taskTitle = _uiState.value.activeTaskTitle
+        )
         triggerHaptic(30)
     }
 
@@ -141,6 +183,7 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
         timerJob?.cancel()
         timerJob = null
         soundGenerator.stop()
+        com.example.service.FocusTimerService.stopService(getApplication())
 
         val mode = _uiState.value.timerMode
         val durationSec = if (_uiState.value.isBreak) {
@@ -239,8 +282,61 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
     fun setSoundscape(type: SoundscapeType) {
         _uiState.update { it.copy(soundscape = type) }
         if (_uiState.value.isTimerRunning) {
-            soundGenerator.setSoundscape(type)
+            if (type == SoundscapeType.CUSTOM && _uiState.value.selectedCustomSound != null) {
+                soundGenerator.setSoundscape(
+                    SoundscapeType.CUSTOM,
+                    getApplication(),
+                    _uiState.value.selectedCustomSound?.filePath
+                )
+            } else {
+                soundGenerator.setSoundscape(type)
+            }
         }
+    }
+
+    fun selectCustomSound(sound: com.example.data.model.CustomSoundEntity?) {
+        _uiState.update {
+            it.copy(
+                selectedCustomSound = sound,
+                soundscape = if (sound != null) SoundscapeType.CUSTOM else it.soundscape
+            )
+        }
+        if (_uiState.value.isTimerRunning && sound != null) {
+            soundGenerator.setSoundscape(
+                SoundscapeType.CUSTOM,
+                getApplication(),
+                sound.filePath
+            )
+        }
+    }
+
+    fun addCustomSound(title: String, filePath: String) {
+        viewModelScope.launch {
+            val id = repository.insertCustomSound(
+                com.example.data.model.CustomSoundEntity(
+                    title = title.ifBlank { "Custom Track" },
+                    filePath = filePath
+                )
+            )
+            val newSound = com.example.data.model.CustomSoundEntity(id = id, title = title, filePath = filePath)
+            selectCustomSound(newSound)
+        }
+    }
+
+    fun deleteCustomSound(sound: com.example.data.model.CustomSoundEntity) {
+        viewModelScope.launch {
+            if (_uiState.value.selectedCustomSound?.id == sound.id) {
+                selectCustomSound(null)
+                setSoundscape(SoundscapeType.NONE)
+            }
+            repository.deleteCustomSound(sound)
+        }
+    }
+
+    fun setAmbientVolume(vol: Float) {
+        val clamped = vol.coerceIn(0.05f, 1.0f)
+        _uiState.update { it.copy(ambientVolume = clamped) }
+        soundGenerator.volumeLevel = clamped
     }
 
     // --- Task Actions ---
@@ -448,5 +544,6 @@ class ProductivityViewModel(application: Application) : AndroidViewModel(applica
     override fun onCleared() {
         super.onCleared()
         soundGenerator.stop()
+        com.example.service.FocusTimerService.stopService(getApplication())
     }
 }

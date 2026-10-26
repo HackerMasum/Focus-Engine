@@ -18,7 +18,8 @@ class ProductivityRepository(
     private val taskDao: TaskDao,
     private val habitDao: HabitDao,
     private val focusSessionDao: FocusSessionDao,
-    private val brainDumpDao: BrainDumpDao
+    private val brainDumpDao: BrainDumpDao,
+    private val customSoundDao: com.example.data.local.CustomSoundDao
 ) {
     // Tasks
     val allTasks: Flow<List<TaskEntity>> = taskDao.getAllTasks()
@@ -122,4 +123,17 @@ class ProductivityRepository(
         )
         brainDumpDao.deleteNoteById(noteId)
     }
+
+    // Custom Sounds
+    val allCustomSounds: Flow<List<com.example.data.model.CustomSoundEntity>> =
+        customSoundDao.getAllCustomSounds()
+
+    suspend fun insertCustomSound(sound: com.example.data.model.CustomSoundEntity): Long =
+        customSoundDao.insertCustomSound(sound)
+
+    suspend fun deleteCustomSound(sound: com.example.data.model.CustomSoundEntity) =
+        customSoundDao.deleteCustomSound(sound)
+
+    suspend fun deleteCustomSoundById(id: Long) =
+        customSoundDao.deleteCustomSoundById(id)
 }

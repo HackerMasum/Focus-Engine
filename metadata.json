@@ -1,6 +1,6 @@
 {
   "name": "FocusFlow",
-  "description": "High-performance productivity suite featuring Pomodoro focus timer with ambient focus soundscapes, Eisenhower Matrix task manager, habit streak tracker, and analytics.",
+  "description": "High-performance productivity suite featuring Pomodoro focus timer with ambient soundscapes, background lock-screen controls, home screen widget, Namaz prayer times with Azan reminders, Eisenhower Matrix, and habit streaks.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

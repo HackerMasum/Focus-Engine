@@ -22,9 +22,10 @@ import java.util.Locale
         TaskEntity::class,
         HabitEntity::class,
         FocusSessionEntity::class,
-        BrainDumpEntity::class
+        BrainDumpEntity::class,
+        com.example.data.model.CustomSoundEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class FocusFlowDatabase : RoomDatabase() {
@@ -32,6 +33,7 @@ abstract class FocusFlowDatabase : RoomDatabase() {
     abstract fun habitDao(): HabitDao
     abstract fun focusSessionDao(): FocusSessionDao
     abstract fun brainDumpDao(): BrainDumpDao
+    abstract fun customSoundDao(): CustomSoundDao
 
     companion object {
         @Volatile
@@ -44,6 +46,7 @@ abstract class FocusFlowDatabase : RoomDatabase() {
                     FocusFlowDatabase::class.java,
                     "focus_flow_database"
                 )
+                    .fallbackToDestructiveMigration()
                     .addCallback(FocusFlowDatabaseCallback(scope))
                     .build()
                 INSTANCE = instance

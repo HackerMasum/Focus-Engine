@@ -7,10 +7,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Mosque
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.Mosque
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +51,7 @@ fun MainScreen(
         NavItem("Focus", Icons.Filled.Timer, Icons.Outlined.Timer, "nav_focus"),
         NavItem("Matrix", Icons.Filled.GridView, Icons.Outlined.GridView, "nav_tasks"),
         NavItem("Habits", Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment, "nav_habits"),
+        NavItem("Namaz", Icons.Filled.Mosque, Icons.Outlined.Mosque, "nav_namaz"),
         NavItem("Insights", Icons.Filled.BarChart, Icons.Outlined.BarChart, "nav_insights")
     )
 
@@ -95,6 +98,7 @@ fun MainScreen(
                 viewModel = viewModel,
                 uiState = uiState,
                 onNavigateToTasks = { selectedTab = 1 },
+                onNavigateToNamaz = { selectedTab = 3 },
                 modifier = screenModifier
             )
             1 -> TasksScreen(
@@ -111,7 +115,11 @@ fun MainScreen(
                 uiState = uiState,
                 modifier = screenModifier
             )
-            3 -> AnalyticsScreen(
+            3 -> NamazScreen(
+                viewModel = viewModel,
+                modifier = screenModifier
+            )
+            4 -> AnalyticsScreen(
                 viewModel = viewModel,
                 uiState = uiState,
                 modifier = screenModifier
